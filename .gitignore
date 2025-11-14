@@ -1,0 +1,76 @@
+# Build outputs
+bin/
+obj/
+out/
+artifacts/
+
+# VS and Rider
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.idea/
+
+# VS Code
+.vscode/
+
+# NuGet
+packages/
+*.nupkg
+project.assets.json
+project.lock.json
+.nuget/
+
+# Publish folders
+publish/
+*.Publish.xml
+*.azurePubxml
+
+# Tooling
+*.dotCover
+.dotnet_tool_restore.json
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+*.db
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Generated code
+*.g.cs
+*.g.i.cs
+*.designer.cs
+
+# User secrets / local settings
+secrets.json
+local.settings.json
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rider / ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# Ignore runtime/config dumps
+dump*
+*.pid
+*.seed
+
+# Keep repository lean (ignore common IDE/editor swap/temp files)
+*~ 
+*.swp
+*.swo
+
+# Ensure sensitive files are not committed
+*.pem
+*.key
+*.crt

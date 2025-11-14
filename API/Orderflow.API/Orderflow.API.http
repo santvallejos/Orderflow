@@ -1,0 +1,6 @@
+@Orderflow.API_HostAddress = http://localhost:5282
+
+GET {{Orderflow.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
