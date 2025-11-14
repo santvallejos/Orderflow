@@ -2,541 +2,367 @@
 
 ## Project Overview
 
-**Project Name:** Orderflow 
+**Project Name:** OrderFlow  
 **Type:** Multi-tenant Restaurant Ordering Platform  
 **Team Size:** 5 developers  
+**Context:** Bootcamp final project with commercial viability focus
 
 ### Mission
-Build a scalable, customizable ordering platform that allows restaurants to have their own branded ordering system without paying commissions to third-party delivery apps. Think "Shopify for restaurants" - same core functionality, but each restaurant gets their own branded experience.
+Build a "Shopify for restaurants" - scalable platform where each restaurant gets their own branded ordering system without commission fees. Same core functionality, but each restaurant's customer app feels unique to them.
 
 ### Core Philosophy
-- **Multi-tenancy first**: Every feature must consider multiple restaurants using the same platform
-- **Customization over uniformity**: Each restaurant should feel unique to their customers
-- **Scalability**: Code for 100 restaurants, not just 1
-- **Commercial viability**: This should be production-ready, not just a school project
+- **Multi-tenancy first**: Every feature must support multiple restaurants
+- **Customization**: Each restaurant should have unique branding/design
+- **Scalability**: Design for 100+ restaurants, not just 1
+- **Production-ready**: Commercial quality, not just academic
 
 ---
 
 ## Technology Stack
 
 ### Backend
-- **.NET 9** (Web API)
-- **Entity Framework Core** (ORM)
-- **PostgreSQL** or **SQL Server** (Database)
-- **Clean Architecture** pattern
-- **JWT** for authentication
-- **SignalR** for real-time updates
+- **.NET 9** - Web API with Clean Architecture
+- **Entity Framework Core** - ORM
+- **PostgreSQL** - Database
+- **JWT** - Authentication
+- **SignalR** - Real-time updates
 
 ### Frontend
-- **React 18+** with TypeScript
-- **Vite** as build tool
-- **TailwindCSS** for styling
-- **React Query** for data fetching
-- **Zustand** or **Context API** for state management
-- **React Router** for navigation
+- **Next.js +16+** - React framework with App Router
+- **TypeScript** - Strict mode required
+- **TailwindCSS** - Styling
+- **shadcn/ui** - Component library
+- **TanStack Query** - Server state management
+- **Zustand** - Client state (cart, UI)
 
 ### Infrastructure
-- **Git** for version control
-- **GitHub Actions** for CI/CD
-- **Docker** for containerization
-- Cloud storage for images (AWS S3)
+- **Turborepo** (optional) - Monorepo management
+- **pnpm** - Package manager
+- **Docker** - Containerization
+- **GitHub Actions** - CI/CD
+- **Vercel** - Frontend hosting
+- **AWS S3** - Image storage
+
+---
+
+## Project Structure
+
+```
+orderflow/
+├── backend/
+│   └── src/
+│       ├── OrderFlow.API/
+│       ├── OrderFlow.Core/          # Domain entities, interfaces
+│       ├── OrderFlow.Application/   # Business logic, DTOs
+│       └── OrderFlow.Infrastructure/# Data access, external services
+│
+├── apps/
+│   ├── admin/                       # Restaurant dashboard
+│   │   └── src/
+│   │       ├── app/
+│   │       │   ├── (auth)/         # Login, register
+│   │       │   ├── (dashboard)/    # Menu, orders, analytics, theme
+│   │       │   └── actions/        # Server Actions
+│   │       ├── components/
+│   │       ├── lib/
+│   │       └── types/
+│   │
+│   └── customer/                    # Customer ordering app
+│       └── src/
+│           ├── app/
+│           │   ├── [restaurantSlug]/  # Dynamic per-restaurant
+│           │   │   ├── page.tsx       # Menu
+│           │   │   ├── cart/
+│           │   │   ├── checkout/
+│           │   │   └── layout.tsx     # Theme wrapper
+│           │   └── actions/
+│           ├── components/
+│           ├── store/              # Zustand stores
+│           └── lib/
+│
+└── packages/                       # Shared code (optional)
+    ├── types/
+    └── ui/
+```
 
 ---
 
 ## Architecture Principles
 
-### Backend Architecture - Clean Architecture
+### Backend - Clean Architecture
 
-```
-Core Layer (Domain)
-├── Entities (Restaurant, MenuItem, Order, Customer, Theme)
-├── Interfaces (Repositories, Services)
-└── Value Objects
+**Layers:**
+1. **Core** - Domain entities, interfaces, value objects
+2. **Application** - Business logic, DTOs, services, validators
+3. **Infrastructure** - Database, external APIs, file storage
+4. **API** - Controllers, middleware, authentication
 
-Application Layer
-├── DTOs (Data Transfer Objects)
-├── Services (Business logic)
-├── Validators (FluentValidation)
-└── Mappings (AutoMapper)
+**Key Rules:**
+- Dependencies point inward (API → Application → Core)
+- Core has no dependencies on other layers
+- Use dependency injection everywhere
+- All entities inherit from `TenantEntity` (includes `RestaurantId`)
 
-Infrastructure Layer
-├── Data (EF Core, DbContext)
-├── Repositories (Data access)
-├── External Services (Payment, Notifications, Storage)
-└── Identity (Authentication/Authorization)
+### Frontend - Next.js App Router
 
-API Layer
-├── Controllers (Endpoints)
-├── Middleware (Tenant resolution, error handling)
-├── Filters
-└── Configuration
-```
+**Component Strategy:**
+- **Default to Server Components** - Fetch data directly, no client bundle
+- **Client Components only when needed** - Interactivity, browser APIs, state
+- **Server Actions** - For mutations (create, update, delete)
+- **React Query** - For real-time data in client components
 
-### Frontend Architecture - Feature-Based
-
-```
-src/
-├── features/           # Feature modules
-│   ├── menu/
-│   ├── orders/
-│   ├── theme-customization/
-│   └── auth/
-├── components/         # Shared components
-├── hooks/             # Custom hooks
-├── services/          # API calls
-├── store/             # State management
-├── types/             # TypeScript types
-└── utils/             # Helper functions
-```
+**Key Patterns:**
+- Dynamic routes for multi-tenancy: `[restaurantSlug]`
+- Route groups for layout organization: `(auth)`, `(dashboard)`
+- ISR (Incremental Static Regeneration) for performance
+- Theme customization via CSS variables
 
 ---
 
 ## Multi-Tenancy Implementation
 
-### Strategy: Single Database with Tenant Isolation
+### Core Concept
+Every restaurant is a "tenant". All data is isolated by `RestaurantId`.
 
-**Every entity must have a `RestaurantId`:**
-
+### Backend
 ```csharp
+// Base entity with tenant isolation
 public abstract class TenantEntity
 {
     public Guid Id { get; set; }
-    public Guid RestaurantId { get; set; }
-    public Restaurant Restaurant { get; set; }
+    public Guid RestaurantId { get; set; }  // CRITICAL: Always required
 }
 
-public class MenuItem : TenantEntity
-{
-    public string Name { get; set; }
-    public decimal Price { get; set; }
-    // ... other properties
-}
-```
-
-**Automatic tenant filtering:**
-
-```csharp
-// Global query filter in DbContext
+// Automatic filtering in DbContext
 modelBuilder.Entity<MenuItem>()
     .HasQueryFilter(m => m.RestaurantId == _currentTenantId);
 ```
 
-**Tenant Resolution:**
-- Admin Panel: Via JWT claim (RestaurantId)
-- Customer App: Via subdomain or custom domain
-  - `restaurant-slug.orderflow.com`
-  - `www.pizzeriaelpaso.com` (future)
+### Frontend
+**Admin Panel:** Identify restaurant via JWT token claim  
+**Customer App:** Identify restaurant via URL slug (`/pizzeria-el-paso`)
+
+```typescript
+// apps/customer/src/app/[restaurantSlug]/layout.tsx
+export default async function RestaurantLayout({ 
+  params 
+}: { 
+  params: Promise<{ restaurantSlug: string }> 
+}) {
+  const { restaurantSlug } = await params;
+  const restaurant = await getRestaurantBySlug(restaurantSlug);
+  
+  return (
+    <ThemeProvider theme={restaurant.theme}>
+      {children}
+    </ThemeProvider>
+  );
+}
+```
 
 ---
 
 ## Coding Standards
 
-### C# / .NET Backend
+### General Rules
 
-#### Naming Conventions
-```csharp
-// Classes: PascalCase
-public class OrderService { }
+**Backend (.NET):**
+- PascalCase for classes, methods, properties
+- _camelCase for private fields
+- Always use `async`/`await`, never `.Result` or `.Wait()`
+- Always use DTOs for API input/output (never expose entities)
+- Always use `Guid` for IDs (never `string` or `int`)
+- Always inject dependencies via constructor
 
-// Interfaces: I + PascalCase
-public interface IOrderRepository { }
+**Frontend (TypeScript):**
+- PascalCase for components, types, interfaces
+- camelCase for functions, variables, hooks
+- UPPER_SNAKE_CASE for constants
+- Always type everything (no `any`)
+- Always use Server Components unless interactivity needed
+- Always use Server Actions for mutations
 
-// Methods: PascalCase
-public async Task<Order> CreateOrderAsync(CreateOrderDto dto) { }
+### Critical Next.js Patterns
 
-// Private fields: _camelCase
-private readonly IOrderRepository _orderRepository;
-
-// Parameters: camelCase
-public void ProcessOrder(Guid orderId, bool sendNotification) { }
-
-// Constants: PascalCase or UPPER_SNAKE_CASE
-public const int MaxItemsPerOrder = 50;
-```
-
-#### Async/Await
-- **ALWAYS** use async/await for I/O operations
-- **ALWAYS** suffix async methods with `Async`
-- **NEVER** use `.Result` or `.Wait()`
-
-```csharp
-// ✅ GOOD
-public async Task<Order> GetOrderAsync(Guid id)
-{
-    return await _repository.GetByIdAsync(id);
-}
-
-// ❌ BAD
-public Order GetOrder(Guid id)
-{
-    return _repository.GetByIdAsync(id).Result; // NEVER DO THIS
-}
-```
-
-#### SOLID Principles
-- **Single Responsibility**: One class, one purpose
-- **Dependency Injection**: Always inject dependencies via constructor
-- **Interface Segregation**: Small, focused interfaces
-
-```csharp
-// ✅ GOOD - Injected dependencies
-public class OrderService : IOrderService
-{
-    private readonly IOrderRepository _orderRepository;
-    private readonly INotificationService _notificationService;
-    
-    public OrderService(
-        IOrderRepository orderRepository,
-        INotificationService notificationService)
-    {
-        _orderRepository = orderRepository;
-        _notificationService = notificationService;
-    }
-}
-```
-
-#### Error Handling
-```csharp
-// Use custom exceptions
-public class RestaurantNotFoundException : Exception
-{
-    public RestaurantNotFoundException(Guid restaurantId) 
-        : base($"Restaurant with ID {restaurantId} not found") { }
-}
-
-// Global exception handling in middleware
-public class ErrorHandlingMiddleware
-{
-    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
-    {
-        try
-        {
-            await next(context);
-        }
-        catch (RestaurantNotFoundException ex)
-        {
-            context.Response.StatusCode = 404;
-            await context.Response.WriteAsJsonAsync(new { error = ex.Message });
-        }
-    }
-}
-```
-
-#### DTOs and Validation
-```csharp
-// Always use DTOs for API inputs/outputs
-public record CreateMenuItemDto(
-    string Name,
-    string Description,
-    decimal Price,
-    string? ImageUrl,
-    bool IsAvailable
-);
-
-// FluentValidation
-public class CreateMenuItemDtoValidator : AbstractValidator<CreateMenuItemDto>
-{
-    public CreateMenuItemDtoValidator()
-    {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Price).GreaterThan(0);
-    }
-}
-```
-
-### TypeScript / React Frontend
-
-#### Naming Conventions
+**1. Server Components (Default)**
 ```typescript
-// Components: PascalCase
-export const MenuCard: React.FC<MenuCardProps> = ({ item }) => { }
-
-// Hooks: camelCase with 'use' prefix
-export const useRestaurantTheme = () => { }
-
-// Types/Interfaces: PascalCase
-interface MenuItem {
-  id: string;
-  name: string;
-  price: number;
+// No 'use client' directive
+export default async function MenuPage({ params }) {
+  const data = await fetchMenuItems(); // Direct fetch
+  return <MenuGrid items={data} />;
 }
-
-// Constants: UPPER_SNAKE_CASE
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-
-// Functions: camelCase
-const calculateOrderTotal = (items: OrderItem[]) => { }
 ```
 
-#### Component Structure
+**2. Client Components (Only when needed)**
 ```typescript
-// ✅ GOOD - Functional component with TypeScript
-interface MenuCardProps {
-  item: MenuItem;
-  onAddToCart: (item: MenuItem) => void;
+'use client'; // Required for: useState, useEffect, event handlers, browser APIs
+
+export function AddToCartButton({ item }) {
+  const [loading, setLoading] = useState(false);
+  const handleClick = () => { /* ... */ };
+  return <button onClick={handleClick}>Add</button>;
 }
-
-export const MenuCard: React.FC<MenuCardProps> = ({ item, onAddToCart }) => {
-  // Hooks first
-  const [quantity, setQuantity] = useState(1);
-  const theme = useRestaurantTheme();
-  
-  // Event handlers
-  const handleAddToCart = () => {
-    onAddToCart({ ...item, quantity });
-  };
-  
-  // Early returns
-  if (!item) return null;
-  
-  // JSX
-  return (
-    <div className="menu-card" style={{ borderColor: theme.primaryColor }}>
-      <h3>{item.name}</h3>
-      <p>{item.description}</p>
-      <button onClick={handleAddToCart}>Add to Cart</button>
-    </div>
-  );
-};
 ```
 
-#### Custom Hooks Pattern
+**3. Server Actions (For mutations)**
 ```typescript
-// ✅ GOOD - Extract logic into custom hooks
-export const useMenuItems = (restaurantId: string) => {
-  return useQuery({
-    queryKey: ['menu-items', restaurantId],
-    queryFn: () => menuService.getItems(restaurantId),
-  });
-};
+// app/actions/menu.ts
+'use server';
+import { revalidatePath } from 'next/cache';
 
-// Usage in component
-const { data: menuItems, isLoading } = useMenuItems(restaurantId);
-```
-
-#### State Management Rules
-- **Local state**: `useState` for component-specific state
-- **Server state**: React Query for API data
-- **Global state**: Context API or Zustand for theme, auth, cart
-
-```typescript
-// ✅ GOOD - React Query for server state
-const { data: orders } = useQuery({
-  queryKey: ['orders', restaurantId],
-  queryFn: () => orderService.getOrders(restaurantId),
-  refetchInterval: 30000, // Refetch every 30s
-});
-
-// ✅ GOOD - Zustand for cart
-interface CartStore {
-  items: CartItem[];
-  addItem: (item: MenuItem) => void;
-  removeItem: (itemId: string) => void;
-  clearCart: () => void;
+export async function createMenuItem(formData: FormData) {
+  // Validate, call API, revalidate cache
+  await apiClient.post('/menu-items', data);
+  revalidatePath('/menu');
 }
-
-export const useCart = create<CartStore>((set) => ({
-  items: [],
-  addItem: (item) => set((state) => ({ 
-    items: [...state.items, item] 
-  })),
-  // ...
-}));
 ```
 
-#### API Service Pattern
-```typescript
-// services/orderService.ts
-class OrderService {
-  private baseUrl = '/api/orders';
-  
-  async createOrder(data: CreateOrderDto): Promise<Order> {
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getToken()}`,
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to create order');
-    }
-    
-    return response.json();
-  }
-  
-  // ... other methods
-}
-
-export const orderService = new OrderService();
-```
+**4. Data Fetching**
+- **Server Components**: Direct `fetch` with caching
+- **Client Components**: React Query for real-time updates
+- **ISR**: `export const revalidate = 60;` for automatic cache refresh
 
 ---
 
 ## Theme Customization System
 
-### Backend - Theme Entity
+### Backend
 ```csharp
 public class Theme : TenantEntity
 {
-    public string PrimaryColor { get; set; } = "#2563eb"; // Tailwind blue-600
-    public string SecondaryColor { get; set; } = "#1e40af";
-    public string AccentColor { get; set; } = "#f59e0b";
-    public string FontFamily { get; set; } = "Inter";
+    public string PrimaryColor { get; set; }    // Hex color
+    public string SecondaryColor { get; set; }
+    public string FontHeading { get; set; }
     public string LogoUrl { get; set; }
-    public string? CustomCss { get; set; } // Advanced customization
-    public bool DarkMode { get; set; }
+    public string? CustomCss { get; set; }      // Advanced
 }
 ```
 
-### Frontend - Theme Provider
+### Frontend
+Dynamic CSS variables applied per restaurant:
 ```typescript
-interface RestaurantTheme {
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  fonts: {
-    heading: string;
-    body: string;
-  };
-  logo: string;
-  darkMode: boolean;
-}
+// ThemeProvider sets CSS vars based on restaurant theme
+root.style.setProperty('--primary', theme.primaryColor);
+```
 
-export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { data: theme } = useRestaurantTheme();
-  
-  useEffect(() => {
-    if (theme) {
-      // Apply CSS variables
-      document.documentElement.style.setProperty('--color-primary', theme.colors.primary);
-      document.documentElement.style.setProperty('--color-secondary', theme.colors.secondary);
-      // ...
-    }
-  }, [theme]);
-  
-  return (
-    <ThemeContext.Provider value={theme}>
-      {children}
-    </ThemeContext.Provider>
-  );
-};
+Tailwind uses these variables:
+```css
+:root { --primary: 219 100% 50%; }
+```
+```typescript
+// Tailwind config
+colors: { primary: 'hsl(var(--primary))' }
+```
+
+---
+
+## State Management
+
+**Server State (API data):**
+- Server Components: Direct fetch
+- Client Components: React Query
+
+**Client State (UI, cart):**
+- Zustand with persist middleware
+- Example: Shopping cart stored in localStorage
+
+```typescript
+// store/cart.ts
+export const useCart = create<CartStore>()(
+  persist(
+    (set) => ({
+      items: [],
+      addItem: (item) => set((state) => ({ items: [...state.items, item] })),
+      clearCart: () => set({ items: [] }),
+    }),
+    { name: 'cart-storage' }
+  )
+);
 ```
 
 ---
 
 ## Database Guidelines
 
-### Entity Relationships
-```csharp
-// One Restaurant has many MenuItems
-public class Restaurant
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; }
-    public string Slug { get; set; } // URL-friendly name
-    public ICollection<MenuItem> MenuItems { get; set; }
-    public ICollection<Order> Orders { get; set; }
-    public Theme Theme { get; set; }
-}
+### Entity Design
+- All entities extend `TenantEntity` (includes `RestaurantId`)
+- Use `Guid` for all IDs
+- Index all foreign keys and `RestaurantId`
+- Use enums for status fields (`OrderStatus`, etc.)
 
-// One Order has many OrderItems (many-to-many with MenuItem)
-public class Order : TenantEntity
-{
-    public Guid CustomerId { get; set; }
-    public Customer Customer { get; set; }
-    public OrderStatus Status { get; set; }
-    public decimal TotalAmount { get; set; }
-    public ICollection<OrderItem> Items { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
+### Relationships
+```csharp
+Restaurant 1 → Many MenuItems
+Restaurant 1 → Many Orders
+Order 1 → Many OrderItems
+OrderItem Many → 1 MenuItem
 ```
 
 ### Migrations
-- **ALWAYS** create migrations with descriptive names
-- **NEVER** manually edit the database
-- **ALWAYS** review migrations before applying
-
 ```bash
-# Good migration names
-dotnet ef migrations add AddThemeCustomization
-dotnet ef migrations add AddOrderStatusEnum
-dotnet ef migrations add AddRestaurantSlug
+dotnet ef migrations add AddFeatureName
+dotnet ef database update
+```
+Always review migrations before applying.
+
+---
+
+## Security & Validation
+
+### Authentication
+- JWT tokens with restaurant ID in claims
+- Verify tenant ownership in every API call:
+```csharp
+if (entity.RestaurantId != currentRestaurantId)
+    throw new UnauthorizedException();
 ```
 
-### Indexes
-```csharp
-// ALWAYS index foreign keys and frequently queried fields
-protected override void OnModelCreating(ModelBuilder modelBuilder)
-{
-    modelBuilder.Entity<MenuItem>()
-        .HasIndex(m => m.RestaurantId);
-    
-    modelBuilder.Entity<Order>()
-        .HasIndex(o => new { o.RestaurantId, o.CreatedAt });
-    
-    modelBuilder.Entity<Restaurant>()
-        .HasIndex(r => r.Slug)
-        .IsUnique();
-}
-```
+### Validation
+**Backend:** FluentValidation  
+**Frontend:** Zod schemas
+
+Always validate:
+- User inputs (both client and server)
+- File uploads (size, type)
+- Price ranges, quantity limits
+- Tenant ownership
+
+---
+
+## Performance Guidelines
+
+### Backend
+- Use pagination (default 20 items)
+- Use eager loading with `.Include()` to avoid N+1 queries
+- Cache frequently accessed data (menus, restaurant info)
+
+### Frontend
+- Use ISR for static-like pages (menus)
+- Lazy load images with Next.js `<Image>`
+- Use React.memo for expensive components
+- Debounce search inputs (500ms)
 
 ---
 
 ## Testing Requirements
 
-### Backend Tests
+### Backend
 ```csharp
-// Unit Tests - xUnit
-public class OrderServiceTests
+// xUnit + Moq
+[Fact]
+public async Task CreateOrder_ValidData_ReturnsOrder()
 {
-    private readonly Mock<IOrderRepository> _mockRepository;
-    private readonly OrderService _service;
-    
-    public OrderServiceTests()
-    {
-        _mockRepository = new Mock<IOrderRepository>();
-        _service = new OrderService(_mockRepository.Object);
-    }
-    
-    [Fact]
-    public async Task CreateOrder_ValidData_ReturnsOrder()
-    {
-        // Arrange
-        var dto = new CreateOrderDto { /* ... */ };
-        
-        // Act
-        var result = await _service.CreateOrderAsync(dto);
-        
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(OrderStatus.Pending, result.Status);
-    }
+    // Arrange, Act, Assert
 }
 ```
 
-### Frontend Tests
+### Frontend
 ```typescript
-// Component tests - Vitest + React Testing Library
-import { render, screen } from '@testing-library/react';
-import { MenuCard } from './MenuCard';
-
+// Vitest + React Testing Library
 describe('MenuCard', () => {
-  it('renders menu item details', () => {
-    const item = {
-      id: '1',
-      name: 'Pizza Margherita',
-      price: 12.99,
-    };
-    
-    render(<MenuCard item={item} onAddToCart={() => {}} />);
-    
-    expect(screen.getByText('Pizza Margherita')).toBeInTheDocument();
-    expect(screen.getByText('$12.99')).toBeInTheDocument();
+  it('renders item details', () => {
+    render(<MenuCard item={mockItem} />);
+    expect(screen.getByText('Pizza')).toBeInTheDocument();
   });
 });
 ```
@@ -548,205 +374,90 @@ describe('MenuCard', () => {
 ### Branch Naming
 ```
 feature/menu-crud
-fix/order-status-bug
+fix/cart-bug
 refactor/theme-system
-docs/api-documentation
 ```
 
 ### Commit Messages (Conventional Commits)
 ```
-feat: add menu item CRUD endpoints
-fix: resolve theme not loading on customer app
-refactor: improve order service performance
+feat: add menu item creation
+fix: resolve cart total calculation
+refactor: improve theme loading
 docs: update API documentation
-test: add unit tests for OrderService
-chore: update dependencies
 ```
 
-### Pull Request Template
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Checklist
-- [ ] Code follows project conventions
-- [ ] Tests added/updated
-- [ ] Documentation updated
-- [ ] No console.logs or debugger statements
-- [ ] Tested on local environment
-
-## Related Issues
-Closes #123
-```
+### Pull Request Process
+1. Create feature branch
+2. Implement + test
+3. Open PR with description
+4. Code review required
+5. Merge to main after approval
 
 ---
 
-## Security Requirements
-
-### Authentication & Authorization
-```csharp
-// ALWAYS check tenant ownership
-public async Task<MenuItem> GetMenuItemAsync(Guid id, Guid restaurantId)
-{
-    var item = await _repository.GetByIdAsync(id);
-    
-    if (item.RestaurantId != restaurantId)
-        throw new UnauthorizedException("Access denied");
-    
-    return item;
-}
-```
-
-### Input Validation
-- **ALWAYS** validate user inputs
-- **ALWAYS** sanitize HTML content
-- **NEVER** trust client-side data
-
-```typescript
-// Frontend validation
-const schema = z.object({
-  name: z.string().min(1).max(100),
-  price: z.number().positive(),
-  description: z.string().max(500),
-});
-
-const result = schema.safeParse(formData);
-if (!result.success) {
-  // Handle errors
-}
-```
-
----
-
-## Performance Guidelines
+## DO NOT
 
 ### Backend
-- Use **pagination** for list endpoints (default: 20 items)
-- Use **eager loading** to avoid N+1 queries
-- Implement **caching** for frequently accessed data
-
-```csharp
-// ✅ GOOD - Eager loading
-public async Task<Order> GetOrderWithItemsAsync(Guid id)
-{
-    return await _context.Orders
-        .Include(o => o.Items)
-        .ThenInclude(i => i.MenuItem)
-        .FirstOrDefaultAsync(o => o.Id == id);
-}
-
-// ❌ BAD - N+1 queries
-public async Task<Order> GetOrderAsync(Guid id)
-{
-    var order = await _context.Orders.FindAsync(id);
-    // This will trigger additional queries for each item
-    foreach (var item in order.Items)
-    {
-        var menuItem = await _context.MenuItems.FindAsync(item.MenuItemId);
-    }
-    return order;
-}
-```
+❌ Return entities directly from controllers (use DTOs)  
+❌ Use `.Result` or `.Wait()` (use `async`/`await`)  
+❌ Skip tenant validation checks  
+❌ Hardcode connection strings or secrets  
 
 ### Frontend
-- Use **React.memo** for expensive components
-- Implement **virtual scrolling** for long lists
-- Use **image optimization** (WebP, lazy loading)
-- Debounce search inputs
+❌ Use `any` type in TypeScript  
+❌ Add 'use client' without reason (default to Server Components)  
+❌ Store sensitive data in localStorage  
+❌ Fetch data in `useEffect` (use Server Components or React Query)  
+❌ Mutate state directly  
 
-```typescript
-// Debounced search
-const [searchTerm, setSearchTerm] = useState('');
-const debouncedSearch = useDebouncedValue(searchTerm, 500);
-
-useEffect(() => {
-  if (debouncedSearch) {
-    // Perform search
-  }
-}, [debouncedSearch]);
-```
+### General
+❌ Commit to main directly  
+❌ Push `.env` files  
+❌ Merge without code review  
+❌ Leave TODO comments (create Trello cards instead)  
 
 ---
 
-## DO NOT Do These Things
-
-### ❌ Backend
-- **NEVER** expose entity IDs in URLs without validation
-- **NEVER** return entities directly from controllers (use DTOs)
-- **NEVER** use `string` for IDs (use `Guid`)
-- **NEVER** catch exceptions without logging them
-- **NEVER** use `dynamic` types
-- **NEVER** hardcode connection strings or API keys
-
-### ❌ Frontend
-- **NEVER** store sensitive data in localStorage
-- **NEVER** use `any` type in TypeScript
-- **NEVER** fetch data in `useEffect` (use React Query)
-- **NEVER** mutate state directly
-- **NEVER** use inline styles (use Tailwind classes)
-- **NEVER** commit `console.log` statements
-
-### ❌ General
-- **NEVER** commit directly to `main` branch
-- **NEVER** push `.env` files
-- **NEVER** leave TODOs without creating a task in Trello
-- **NEVER** merge PRs without code review
-- **NEVER** deploy without testing
-
----
-
-## AI Assistant Specific Instructions
+## AI Assistant Behavior
 
 When generating code:
 
-1. **ALWAYS consider multi-tenancy** - Add `RestaurantId` checks
-2. **ALWAYS use TypeScript** - No `any` types
-3. **ALWAYS handle errors** - Try/catch blocks and proper error messages
-4. **ALWAYS add comments** - Explain complex logic
-5. **ALWAYS suggest tests** - Offer to write unit tests
-6. **ALWAYS follow naming conventions** - As specified above
-7. **ALWAYS validate inputs** - Both frontend and backend
-8. **ALWAYS think about scalability** - Code for 1000 restaurants, not 1
+1. **Always consider multi-tenancy** - Include `RestaurantId` checks
+2. **Choose correct component type** - Server Component unless interactivity needed
+3. **Include validation** - Both frontend (Zod) and backend (FluentValidation)
+4. **Add error handling** - Try/catch with proper error messages
+5. **Follow naming conventions** - As specified above
+6. **Add comments** - Explain complex logic
+7. **Think scalability** - Code for 100+ restaurants
 
-When I ask you to:
-- **"Create a feature"** → Provide both backend and frontend code
-- **"Add tests"** → Include unit and integration tests
-- **"Optimize this"** → Explain what you're optimizing and why
-- **"Review this code"** → Point out issues, suggest improvements
-- **"Generate API endpoint"** → Include controller, service, DTO, and validation
+When asked to:
+- **"Create feature X"** → Provide backend + frontend code
+- **"Add tests"** → Include unit tests with examples
+- **"Optimize this"** → Explain what and why
+- **"Review code"** → Point out issues and suggest improvements
 
-### Code Generation Format
+### Code Format
+```typescript
+// File: src/app/menu/page.tsx
+// Purpose: Display restaurant menu
+// Type: Server Component
 
-When generating backend code:
-```csharp
-// File: RestaurantPlatform.API/Controllers/MenuController.cs
-// Purpose: CRUD operations for menu items
-// Dependencies: IMenuService, IMapper
-
-[ApiController]
-[Route("api/restaurants/{restaurantId}/menu")]
-public class MenuController : ControllerBase
-{
-    // ... implementation
+export default async function MenuPage() {
+  // Implementation
 }
 ```
 
-When generating frontend code:
-```typescript
-// File: src/features/menu/components/MenuCard.tsx
-// Purpose: Display individual menu item
-// Dependencies: useRestaurantTheme, useCart
+---
 
-export const MenuCard: React.FC<MenuCardProps> = ({ item }) => {
-    // ... implementation
-};
-```
+## Business Rules
+
+1. Orders cannot be modified after status = `Preparing`
+2. Menu items use soft delete (mark unavailable, don't delete)
+3. Restaurant slugs must be unique
+4. Theme colors must be valid hex codes
+5. Prices stored as `decimal` with 2 decimal places
+6. Orders require minimum 1 item
+7. Payment must confirm before order status = `Confirmed`
 
 ---
 
@@ -757,36 +468,22 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item }) => {
 # Backend
 dotnet ef migrations add MigrationName
 dotnet ef database update
-dotnet test
-dotnet run --project RestaurantPlatform.API
+dotnet run --project OrderFlow.API
 
 # Frontend
-npm run dev
-npm run build
-npm test
-npm run lint
+pnpm dev
+pnpm build
+pnpm test
 ```
 
-### Useful Extensions
-- Backend: C# Dev Kit, NuGet Package Manager
-- Frontend: ES7+ React/Redux snippets, Tailwind CSS IntelliSense
-- General: GitLens, Better Comments, Error Lens
-
----
-
-## Project-Specific Business Rules
-
-1. **Orders** cannot be modified after status is `Preparing`
-2. **Menu items** can be marked unavailable but never deleted (soft delete)
-3. **Restaurants** must have a unique slug for subdomain
-4. **Themes** must have valid hex color codes
-5. **Prices** are stored as `decimal` with 2 decimal places
-6. **Orders** must have at least 1 item
-7. **Customers** can have multiple addresses
-8. **Payment** must be confirmed before order status changes to `Confirmed`
+### Project Values
+- **Multi-tenancy:** Every feature considers multiple restaurants
+- **Customization:** Unique branding per restaurant
+- **Performance:** Fast load times, efficient queries
+- **Security:** Always validate tenant ownership
+- **Quality:** Production-ready code, not MVP hacks
 
 ---
 
 **Last Updated:** November 2024  
-**Project Phase:** Sprint 1 - MVP Development  
-**Team:** 5 developers (Bootcamp Final Project)
+**Version:** 1.0 - Next.js +16 Migration
