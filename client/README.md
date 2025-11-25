@@ -2,21 +2,39 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+```
+
+Then, run the development server:
+
+```bash
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+## Code Quality
+
+This project uses strict ESLint configuration for team collaboration.
+
+**📖 See [ESLINT.md](./ESLINT.md) for complete documentation.**
+
+```bash
+pnpm lint              # Check for errors
+pnpm lint:fix          # Auto-fix errors
+pnpm lint:strict       # No warnings (CI/CD)
+pnpm type-check        # TypeScript validation
+
+# Before committing
+pnpm lint:strict && pnpm type-check
+```
+
+## Project Structure
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
