@@ -1,16 +1,19 @@
-namespace Orderflow.Core;
 
-public class MenuItem
+namespace Orderflow.Core
 {
-    private decimal _price;
+    public class MenuItem
+    {
+        private decimal _price;
 
-    public Guid Id { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
-    public string Category { get; set; }
-    public decimal Price { 
-        get => _price; 
-        set
+        public Guid Id { get; set; }
+        public Guid RestaurantId { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public string Category { get; set; }
+        public decimal Price
+        {
+            get => _price;
+            set
             {
                 if (value < 0) // No permitir precios negativos
                 {
@@ -22,5 +25,6 @@ public class MenuItem
                 }
             }
         }
-    public string? URLImage { get; set; }
+        public string? URLImage { get; set; }
+    }
 }
