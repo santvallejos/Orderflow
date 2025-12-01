@@ -1,4 +1,3 @@
-
 namespace Orderflow.Core.Entities
 {
     public class MenuItem : Tenant

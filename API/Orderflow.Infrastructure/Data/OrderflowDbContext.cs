@@ -22,6 +22,13 @@ namespace Orderflow.Infrastructure.Data
         // Configura el modelo y aplica filtros globales
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            // Configurar la relación Restaurant -> MenuItem
+            modelBuilder.Entity<Restaurant>()
+                .HasMany(r => r.Menu)
+                .WithOne()
+                .HasForeignKey(m => m.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             modelBuilder.Entity<MenuItem>()
                 .HasQueryFilter(e => e.RestaurantId == _tenantService.GetTenantId());// Aplica filtro global para multi-tenant
 
